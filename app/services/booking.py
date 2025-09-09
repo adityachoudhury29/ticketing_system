@@ -1,0 +1,136 @@
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List, Optional
+from ..crud import booking as booking_crud, event as event_crud, waitlist as waitlist_crud
+from ..models.models import Booking, BookingStatus, Seat, SeatStatus, Event
+from ..services.cache import CacheService, get_event_cache_key, get_event_seats_cache_key
+from ..worker.tasks import notify_waitlist_user
+from sqlalchemy import exc as sa_exc
+from fastapi import HTTPException
+
+
+class BookingService:
+    """Service for handling booking operations"""
+    
+    @staticmethod
+    async def create_booking(
+        db: AsyncSession,
+        user_id: int,
+        event_id: int,
+        seat_identifiers: List[str]
+    ) -> Booking:
+        """
+        Create a booking with proper transaction handling.
+        This method now handles its own transaction.
+        """
+        try:
+            # Verify event exists first
+            event = await event_crud.get_event_by_id(db, event_id)
+            if not event:
+                raise ValueError("Event not found")
+            
+            # Create booking (this doesn't commit)
+            booking = await booking_crud.create_booking_with_seats(
+                db, user_id, event_id, seat_identifiers
+            )
+            
+            # Commit the transaction
+            await db.commit()
+            
+            # Invalidate seat cache after successful commit
+            CacheService.delete(get_event_seats_cache_key(event_id))
+            
+            return booking
+            
+        except (ValueError, RuntimeError) as e:
+            await db.rollback()
+            raise
+        except Exception as e:
+            await db.rollback()
+            raise RuntimeError(f"Failed to create booking: {str(e)}")
+    
+    @staticmethod
+    async def cancel_booking(
+        db: AsyncSession,
+        booking_id: int,
+        user_id: int
+    ) -> Optional[Booking]:
+        booking = await booking_crud.cancel_booking(db, booking_id, user_id)
+        if booking:
+            # Invalidate seat cache
+            CacheService.delete(get_event_seats_cache_key(booking.event_id))
+            # Optionally notify waitlist if seats freed
+            available = await event_crud.get_available_seats_count(db, booking.event_id)
+            if available > 0:
+                try:
+                    notify_waitlist_user.delay(booking.event_id)
+                except Exception:
+                    pass
+        return booking
+
+class EventService:
+    """Service for handling event operations"""
+
+    @staticmethod
+    def generate_default_seat_layout(total_capacity: int) -> List[str]:
+        # Simple linear layout A01-01 ... A01-NN
+        return [f"A01-{i:02d}" for i in range(1, total_capacity + 1)]
+
+    @staticmethod
+    async def create_event_with_seats(
+        db: AsyncSession,
+        name: str,
+        venue: str,
+        description: Optional[str],
+        start_time,
+        end_time,
+        total_capacity: int,
+        created_by: int,
+        seat_layout: Optional[List[str]] = None
+    ):
+        """
+        Create an event and its seats atomically using the session's existing transaction.
+        Avoid nested 'db.begin()' which caused: 'A transaction is already begun on this Session.'
+        """
+        try:
+            # Build event
+            event = Event(
+                name=name,
+                venue=venue,
+                description=description,
+                start_time=start_time,
+                end_time=end_time,
+                total_capacity=total_capacity,
+                created_by=created_by
+            )
+            db.add(event)
+            await db.flush()  # Get event.id
+
+            # Seat layout
+            if not seat_layout:
+                seat_layout = EventService.generate_default_seat_layout(total_capacity)
+
+            # De-duplicate provided identifiers (defensive)
+            unique = []
+            seen = set()
+            for sid in seat_layout:
+                if sid not in seen:
+                    seen.add(sid)
+                    unique.append(sid)
+
+            seats = [
+                Seat(event_id=event.id, seat_identifier=sid, status=SeatStatus.AVAILABLE)
+                for sid in unique
+            ]
+            db.add_all(seats)
+
+            # Commit (single transaction)
+            await db.commit()
+
+        except Exception:
+            await db.rollback()
+            raise
+
+        # Invalidate caches & refresh
+        CacheService.delete_pattern("events:list:*")
+        await db.refresh(event)
+        return event
