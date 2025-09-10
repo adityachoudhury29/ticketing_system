@@ -1,12 +1,23 @@
+# app/worker/tasks.py
 from celery import current_task
 from .celery_app import celery_app
-import asyncio
-from sqlalchemy.ext.asyncio import AsyncSession
-from ..db.session import AsyncSessionLocal
-from ..crud import waitlist as waitlist_crud
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import sessionmaker, selectinload
+from ..core.config import settings
+from ..models.models import User, Event, Booking, BookingStatus, WaitlistEntry, Ticket
+from ..services.email import EmailService
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Create synchronous database engine and session for Celery
+# Convert async postgresql+asyncpg URL to sync psycopg2 URL
+sync_database_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
+sync_engine = create_engine(sync_database_url, pool_pre_ping=True)
+SyncSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)
+
+# Create a synchronous email service instance
+email_service = EmailService()
 
 
 @celery_app.task
@@ -16,104 +27,109 @@ def notify_waitlist_user(event_id: int):
     when seats become available for an event.
     """
     try:
-        # Run async function in sync context
-        asyncio.run(_notify_waitlist_user_async(event_id))
+        with SyncSessionLocal() as db:
+            # Get the next waitlist user for this event
+            waitlist_entry = db.query(WaitlistEntry).filter(
+                WaitlistEntry.event_id == event_id
+            ).first()
+            
+            if not waitlist_entry:
+                logger.info("No waitlist entry found for event %s", event_id)
+                return f"No waitlist entry for event {event_id}"
+
+            # Get user and event
+            user = db.query(User).filter(User.id == waitlist_entry.user_id).first()
+            event = db.query(Event).filter(Event.id == event_id).first()
+
+            if not user or not event:
+                logger.error("Missing user or event while notifying waitlist (user=%s event=%s)", user, event)
+                return f"Missing data for event {event_id}"
+
+            # Send the notification email (synchronously)
+            import asyncio
+            sent = asyncio.run(email_service.send_waitlist_notification(user, event))
+            if sent:
+                logger.info("Sent waitlist email to user %s for event %s", user.email, event.id)
+            else:
+                logger.warning("Failed to send waitlist email to user %s for event %s", user.email, event.id)
+
         return f"Processed waitlist notification for event {event_id}"
     except Exception as e:
-        logger.error(f"Failed to process waitlist notification for event {event_id}: {str(e)}")
+        logger.exception("Failed to process waitlist notification for event %s: %s", event_id, e)
         raise
 
 
-async def _notify_waitlist_user_async(event_id: int):
-    """Async function to handle waitlist notification"""
-    async with AsyncSessionLocal() as db:
-        try:
-            # Get next user on waitlist
-            waitlist_entry = await waitlist_crud.get_next_waitlist_user(db, event_id)
+@celery_app.task
+def send_booking_confirmation_email(booking_id: int):
+    """
+    Background task to send booking confirmation email.
+    """
+    try:
+        with SyncSessionLocal() as db:
+            # Get booking with tickets loaded
+            booking = db.query(Booking).options(
+                selectinload(Booking.tickets)
+            ).filter(Booking.id == booking_id).first()
             
-            if waitlist_entry:
-                # In a real application, you would send an email or push notification here
-                # For now, we'll just log it
-                logger.info(
-                    f"Notifying user {waitlist_entry.user_id} "
-                    f"about available seats for event {event_id}"
-                )
-                
-                # Simulate notification (in production, integrate with email service)
-                await _send_notification(waitlist_entry.user_id, event_id)
-                
-                # Optionally remove from waitlist after notification
-                # await waitlist_crud.remove_from_waitlist(db, waitlist_entry.user_id, event_id)
-                
-        except Exception as e:
-            logger.error(f"Error in waitlist notification: {str(e)}")
-            raise
+            if not booking:
+                logger.error("Booking %s not found for confirmation email", booking_id)
+                return f"Booking {booking_id} not found"
 
+            # Get user and event
+            user = db.query(User).filter(User.id == booking.user_id).first()
+            event = db.query(Event).filter(Event.id == booking.event_id).first()
 
-async def _send_notification(user_id: int, event_id: int):
-    """
-    Simulate sending notification to user.
-    In production, this would integrate with email/SMS/push notification services.
-    """
-    # This is where you would integrate with:
-    # - SendGrid, AWS SES, or other email services
-    # - Twilio for SMS
-    # - Firebase for push notifications
-    # - Slack/Discord webhooks
-    
-    logger.info(f"🎫 Notification sent to user {user_id}: Seats available for event {event_id}")
-    
-    # Simulate some processing time
-    await asyncio.sleep(1)
+            if not user or not event:
+                logger.error("Missing user or event for booking confirmation email (user=%s event=%s)", user, event)
+                return f"Missing data for booking {booking_id}"
 
+            # Send the confirmation email (synchronously)
+            import asyncio
+            sent = asyncio.run(email_service.send_booking_confirmation(user, booking, event))
+            if sent:
+                logger.info("Sent booking confirmation email to user %s for booking %s", user.email, booking.id)
+            else:
+                logger.warning("Failed to send booking confirmation email to user %s for booking %s", user.email, booking.id)
 
-@celery_app.task
-def cleanup_expired_bookings():
-    """
-    Background task to clean up expired or abandoned bookings.
-    This could be run periodically to handle cases where users
-    start booking but don't complete the process.
-    """
-    try:
-        asyncio.run(_cleanup_expired_bookings_async())
-        return "Cleanup completed successfully"
+        return f"Sent booking confirmation email for booking {booking_id}"
     except Exception as e:
-        logger.error(f"Failed to cleanup expired bookings: {str(e)}")
+        logger.exception("Failed to send booking confirmation email for booking %s: %s", booking_id, e)
         raise
 
 
-async def _cleanup_expired_bookings_async():
-    """Async function to handle cleanup of expired bookings"""
-    # This would identify and clean up any bookings that are in
-    # an intermediate state for too long
-    logger.info("Cleaning up expired bookings...")
-    
-    # Implementation would depend on specific business rules
-    # For example, if seats are locked for more than 10 minutes
-    # without completing payment, they could be released
-    
-    pass
-
-
 @celery_app.task
-def generate_analytics_report():
+def send_booking_cancellation_email(booking_id: int):
     """
-    Background task to generate analytics reports.
-    This could be run daily or weekly.
+    Background task to send booking cancellation email.
     """
     try:
-        asyncio.run(_generate_analytics_report_async())
-        return "Analytics report generated successfully"
+        with SyncSessionLocal() as db:
+            # Get booking with tickets loaded (even if cancelled)
+            booking = db.query(Booking).options(
+                selectinload(Booking.tickets)
+            ).filter(Booking.id == booking_id).first()
+            
+            if not booking:
+                logger.error("Booking %s not found for cancellation email", booking_id)
+                return f"Booking {booking_id} not found"
+
+            # Get user and event
+            user = db.query(User).filter(User.id == booking.user_id).first()
+            event = db.query(Event).filter(Event.id == booking.event_id).first()
+
+            if not user or not event:
+                logger.error("Missing user or event for booking cancellation email (user=%s event=%s)", user, event)
+                return f"Missing data for booking {booking_id}"
+
+            # Send the cancellation email (synchronously)
+            import asyncio
+            sent = asyncio.run(email_service.send_cancellation_notice(user, booking, event))
+            if sent:
+                logger.info("Sent booking cancellation email to user %s for booking %s", user.email, booking.id)
+            else:
+                logger.warning("Failed to send booking cancellation email to user %s for booking %s", user.email, booking.id)
+
+        return f"Sent booking cancellation email for booking {booking_id}"
     except Exception as e:
-        logger.error(f"Failed to generate analytics report: {str(e)}")
+        logger.exception("Failed to send booking cancellation email for booking %s: %s", booking_id, e)
         raise
-
-
-async def _generate_analytics_report_async():
-    """Async function to generate analytics report"""
-    logger.info("Generating analytics report...")
-    
-    # This would compile various metrics and potentially
-    # send them to administrators or store them for dashboard display
-    
-    pass
