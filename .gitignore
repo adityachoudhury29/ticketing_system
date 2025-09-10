@@ -161,3 +161,6 @@ logs/
 
 start_dev.sh
 myenv
+migration.py
+test_concurrency.py
+test.sh

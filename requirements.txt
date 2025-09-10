@@ -22,3 +22,4 @@ qrcode==7.4.2
 Pillow==10.1.0
 psutil==5.9.6
 aiohttp==3.9.1
+asyncpg>=0.29.0
