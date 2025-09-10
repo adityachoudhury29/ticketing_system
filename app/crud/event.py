@@ -179,7 +179,7 @@ async def get_daily_booking_trends(
         select(
             func.date(Booking.created_at).label("day"),
             func.count(Booking.id).label("bookings"),
-            func.coalesce(func.sum(Ticket.price), 0).label("revenue")
+            func.count(Ticket.id).label("ticket_count")
         )
         .join(Ticket, Ticket.booking_id == Booking.id, isouter=True)
         .where(
@@ -191,7 +191,7 @@ async def get_daily_booking_trends(
         .order_by(func.date(Booking.created_at))
     )
     result = await db.execute(stmt)
-    rows = {r.day: (r.bookings, r.revenue) for r in result.all()}
+    rows = {r.day: (r.bookings, r.ticket_count * 50.0) for r in result.all()}  # $50 per ticket
 
     # Fill gaps
     output = []

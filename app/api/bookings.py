@@ -4,7 +4,7 @@ from typing import List
 from ..db.session import get_db
 from ..schemas.schemas import BookingCreate, BookingResponse, TicketResponse
 from ..crud.booking import get_user_bookings, get_booking_by_id
-from ..services.booking import BookingService
+from ..services.booking import BookingService, EventService
 from ..core.deps import get_current_user
 from ..models.models import User, BookingStatus
 
@@ -64,20 +64,6 @@ async def cancel_booking(
 ):
     """
     Cancel a booking (DELETE semantic). Returns the cancelled booking.
-    """
-    booking = await BookingService.cancel_booking(db, booking_id, current_user.id)
-    if not booking:
-        raise HTTPException(status_code=404, detail="Booking not found")
-    return BookingResponse.model_validate(booking)
-
-@router.post("/{booking_id}/cancel", response_model=BookingResponse, status_code=200, deprecated=True)
-async def cancel_booking_legacy(
-    booking_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Deprecated legacy endpoint for cancellation (was POST). Use DELETE /bookings/{booking_id}.
     """
     booking = await BookingService.cancel_booking(db, booking_id, current_user.id)
     if not booking:

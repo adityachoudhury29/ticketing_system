@@ -7,8 +7,8 @@ from ..schemas.schemas import (
     EventCreate, EventUpdate, EventResponse, 
     AnalyticsSummary, PopularEvent, DailyTrend
 )
-from ..crud.event import create_event, get_event_by_id, update_event, delete_event, get_events
-from ..crud.booking import get_booking_analytics, get_popular_events_stats, get_daily_booking_trends
+from ..crud.event import create_event, get_event_by_id, update_event, delete_event, get_events, get_popular_events_stats, get_daily_booking_trends
+from ..crud.booking import get_booking_analytics
 from ..crud.user import get_users
 from ..services.booking import EventService
 from ..services.cache import CacheService
