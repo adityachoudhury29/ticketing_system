@@ -1,11 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from uuid import UUID
-from ..crud import booking as booking_crud, event as event_crud, waitlist as waitlist_crud, user as user_crud
-from ..models.models import Booking, BookingStatus, Seat, SeatStatus, Event
-from .cache import CacheService, get_event_cache_key, get_event_seats_cache_key
-from sqlalchemy import exc as sa_exc
-from fastapi import HTTPException
+from ..crud import booking as booking_crud, event as event_crud
+from ..models.models import Booking, Seat, SeatStatus, Event
+from .cache import CacheService, get_event_seats_cache_key
 import logging
 
 logger = logging.getLogger(__name__)

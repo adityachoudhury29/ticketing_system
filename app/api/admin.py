@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
-from datetime import datetime, timedelta
 from uuid import UUID
 from ..db.session import get_db
 from ..schemas.schemas import (
     EventCreate, EventUpdate, EventResponse, 
     AnalyticsSummary, PopularEvent, DailyTrend
 )
-from ..crud.event import create_event, get_event_by_id, update_event, delete_event, get_events, get_popular_events_stats, get_daily_booking_trends
+from ..crud.event import get_event_by_id, update_event, delete_event, get_events, get_popular_events_stats, get_daily_booking_trends
 from ..crud.booking import get_booking_analytics
 from ..crud.user import get_users
 from ..services.booking import EventService

@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, and_, func
+from sqlalchemy import select, delete, and_
 from typing import Optional, List
 from uuid import UUID
 from ..models.models import WaitlistEntry

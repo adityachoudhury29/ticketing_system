@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Script to create an admin user for the Evently platform.
 Run this after setting up the database.
@@ -18,7 +17,7 @@ async def create_admin_user():
             admin_user = await create_user(
                 db=db,
                 email="admin@evently.com",
-                password="admin123",  # Change this in production!
+                password="admin123",
                 role=UserRole.ADMIN
             )
             print(f"Admin user created successfully!")

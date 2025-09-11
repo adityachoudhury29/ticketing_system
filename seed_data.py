@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Script to seed the database with sample events for testing.
 """

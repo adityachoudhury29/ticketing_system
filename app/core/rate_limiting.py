@@ -1,9 +1,8 @@
 from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from typing import Optional, Callable, Dict, Any
+from typing import Callable, Dict, Any
 import time
-import asyncio
 import re
 from functools import wraps
 from ..services.cache import CacheService, REDIS_AVAILABLE
@@ -190,27 +189,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             # If rate limiting fails, continue with request
             print(f"Rate limiting middleware error: {e}")
             return await call_next(request)
-            if not is_allowed:
-                return JSONResponse(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    content={
-                        "message": "Rate limit exceeded",
-                        "reset_time": info["reset_time"]
-                    },
-                    headers={
-                        "X-RateLimit-Limit": str(rate_limiter.calls),
-                        "X-RateLimit-Remaining": str(info["remaining"]),
-                        "X-RateLimit-Reset": str(info["reset_time"])
-                    }
-                )
-        
-        # Add rate limit headers to response
-        response = await call_next(request)
-        response.headers["X-RateLimit-Limit"] = str(rate_limiter.calls)
-        response.headers["X-RateLimit-Remaining"] = str(info["remaining"])
-        response.headers["X-RateLimit-Reset"] = str(info["reset_time"])
-        
-        return response
 
 
 # Decorator for function-level rate limiting

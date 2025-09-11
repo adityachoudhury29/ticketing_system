@@ -5,9 +5,9 @@ from uuid import UUID
 from ..db.session import get_db
 from ..schemas.schemas import BookingCreate, BookingResponse, TicketResponse
 from ..crud.booking import get_user_bookings, get_booking_by_id
-from ..services.booking import BookingService, EventService
+from ..services.booking import BookingService
 from ..core.deps import get_current_user
-from ..models.models import User, BookingStatus
+from ..models.models import User
 
 router = APIRouter()
 

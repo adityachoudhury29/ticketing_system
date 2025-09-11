@@ -1,6 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, and_, func
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select
 from typing import Optional, List
 from uuid import UUID
 from ..models.models import User, UserRole

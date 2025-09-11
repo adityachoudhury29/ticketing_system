@@ -1,12 +1,9 @@
 import time
 import psutil
-import asyncio
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 from datetime import datetime, timedelta
-from fastapi import Request, Response
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Request
 from ..db.session import AsyncSessionLocal
-from ..services.cache import CacheService
 
 
 class PerformanceMonitor:

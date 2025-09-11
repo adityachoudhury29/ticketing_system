@@ -1,7 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, Any
-from ..db.session import get_db
+from fastapi import APIRouter, Depends
 from ..core.deps import get_current_admin_user
 from ..core.monitoring import (
     performance_monitor, DatabaseMonitor, CacheMonitor, HealthChecker

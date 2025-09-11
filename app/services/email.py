@@ -1,22 +1,20 @@
-# app/services/email.py
 import smtplib
 import asyncio
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Optional, List
-
+from typing import Optional
 from ..core.config import settings
 from ..models.models import User, Event, Booking
 
-logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
 
 class EmailService:
     """Email notification service using SMTP (configurable via settings)"""
 
     def __init__(self):
-        # Read configuration from settings (provide sensible defaults)
+        # Read configuration from settings
         self.smtp_server = getattr(settings, "smtp_server", "localhost")
         self.smtp_port = int(getattr(settings, "smtp_port", 587))
         self.username = getattr(settings, "smtp_username", None)

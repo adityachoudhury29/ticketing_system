@@ -1,11 +1,12 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, and_, func
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select, update, and_, func
 from typing import Optional, List
 from datetime import datetime, timezone
 from uuid import UUID
 from sqlalchemy import exc as sa_exc
 from ..models.models import Event, Seat, SeatStatus
+from sqlalchemy import select, func, desc
+from ..models.models import Booking, BookingStatus, Event, Ticket
 
 
 async def create_event(
@@ -84,12 +85,11 @@ async def delete_event(db: AsyncSession, event_id: UUID) -> bool:
         event = await get_event_by_id(db, event_id)
         if not event:
             return False
-        await db.delete(event)          # Use ORM delete (triggers relationship cascades)
+        await db.delete(event)          # ORM delete (triggers relationship cascades)
         await db.commit()
         return True
     except Exception as e:
         await db.rollback()
-        # Let caller turn this into HTTPException; keep message for debugging
         raise RuntimeError(f"Failed to delete event: {e}")
 
 
@@ -140,8 +140,6 @@ async def get_available_seats_count(db: AsyncSession, event_id: UUID) -> int:
     )
     return result.scalar() or 0
 
-from sqlalchemy import select, func, desc, Date
-from ..models.models import Booking, BookingStatus, Event, Ticket
 
 async def get_popular_events_stats(db: AsyncSession, limit: int = 10):
     """

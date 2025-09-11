@@ -1,12 +1,11 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, and_, func, or_
+from sqlalchemy import select, and_, func
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
-from datetime import datetime
 from uuid import UUID
 import uuid
 import logging
-from ..models.models import Booking, Ticket, Seat, SeatStatus, BookingStatus, Event
+from ..models.models import Booking, Ticket, Seat, SeatStatus, BookingStatus
 
 logger = logging.getLogger(__name__)
 

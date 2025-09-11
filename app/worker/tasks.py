@@ -1,11 +1,9 @@
-# app/worker/tasks.py
-from celery import current_task
 from .celery_app import celery_app
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, selectinload
 from uuid import UUID
 from ..core.config import settings
-from ..models.models import User, Event, Booking, BookingStatus, WaitlistEntry, Ticket
+from ..models.models import User, Event, Booking, WaitlistEntry
 from ..services.email import EmailService
 import logging
 

@@ -1,6 +1,6 @@
 import redis
 import json
-from typing import Optional, List, Any
+from typing import Optional, Any
 from uuid import UUID
 from ..core.config import settings
 

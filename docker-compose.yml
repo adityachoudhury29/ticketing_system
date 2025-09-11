@@ -88,7 +88,7 @@ services:
       - evently_network
     restart: unless-stopped
 
-  # Celery Flower (Optional - for monitoring Celery tasks)
+  # Celery Flower
   celery-flower:
     build: .
     container_name: evently_flower
