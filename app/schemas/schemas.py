@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from enum import Enum
 from uuid import UUID
 
@@ -49,6 +49,7 @@ class EventCreate(BaseModel):
     start_time: datetime
     end_time: datetime
     total_capacity: int
+    base_price: float = 50.0
 
 
 class EventUpdate(BaseModel):
@@ -58,6 +59,7 @@ class EventUpdate(BaseModel):
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     total_capacity: Optional[int] = None
+    base_price: Optional[float] = None
 
 
 class EventResponse(BaseModel):
@@ -70,6 +72,7 @@ class EventResponse(BaseModel):
     start_time: datetime
     end_time: datetime
     total_capacity: int
+    base_price: float
     created_at: datetime
 
 
@@ -153,3 +156,23 @@ class DailyTrend(BaseModel):
     date: str
     bookings: int
     revenue: float
+
+
+# Venue Heatmap schemas
+class SeatHeatmapData(BaseModel):
+    seat_id: UUID
+    seat_identifier: str
+    booking_speed_score: float
+    group_booking_score: float
+    popularity_score: float
+    heat_intensity: float  # Calculated overall heat (0-100)
+
+
+class VenueHeatmapResponse(BaseModel):
+    event_id: UUID
+    event_name: str
+    total_seats: int
+    booked_seats: int
+    capacity_percentage: float
+    seats_data: List[SeatHeatmapData]
+    last_updated: datetime

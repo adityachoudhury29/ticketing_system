@@ -156,17 +156,26 @@ async def get_booking_analytics(db: AsyncSession) -> dict:
     )
     total_bookings = total_bookings_result.scalar() or 0
     
-    # Revenue calculation (assuming each ticket is $50 for simplicity)
+    # Revenue calculation using actual event prices
+    from ..models.models import Event, Ticket
+    revenue_result = await db.execute(
+        select(func.sum(Event.base_price))
+        .join(Booking, Booking.event_id == Event.id)
+        .join(Ticket, Ticket.booking_id == Booking.id)
+        .where(Booking.status == BookingStatus.CONFIRMED)
+    )
+    total_revenue = revenue_result.scalar() or 0.0
+    
+    # Total tickets count
     total_tickets_result = await db.execute(
         select(func.count(Ticket.id))
         .join(Booking)
         .where(Booking.status == BookingStatus.CONFIRMED)
     )
     total_tickets = total_tickets_result.scalar() or 0
-    total_revenue = total_tickets * 50.0  # $50 per ticket
     
     return {
         "total_bookings": total_bookings,
-        "total_revenue": total_revenue,
+        "total_revenue": float(total_revenue),
         "total_tickets": total_tickets
     }

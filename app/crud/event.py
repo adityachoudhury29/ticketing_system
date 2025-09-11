@@ -173,13 +173,14 @@ async def get_daily_booking_trends(
     end_date = datetime.now(timezone.utc).date()
     start_date = end_date - timedelta(days=days - 1)
 
-    # Aggregate bookings per day
+    # Aggregate bookings per day with actual event prices
     stmt = (
         select(
             func.date(Booking.created_at).label("day"),
             func.count(Booking.id).label("bookings"),
-            func.count(Ticket.id).label("ticket_count")
+            func.sum(Event.base_price).label("daily_revenue")
         )
+        .join(Event, Event.id == Booking.event_id)
         .join(Ticket, Ticket.booking_id == Booking.id, isouter=True)
         .where(
             Booking.status == BookingStatus.CONFIRMED,
@@ -190,12 +191,12 @@ async def get_daily_booking_trends(
         .order_by(func.date(Booking.created_at))
     )
     result = await db.execute(stmt)
-    rows = {r.day: (r.bookings, r.ticket_count * 50.0) for r in result.all()}  # $50 per ticket
+    rows = {r.day: (r.bookings, float(r.daily_revenue or 0.0)) for r in result.all()}
 
     # Fill gaps
     output = []
     for i in range(days):
         d = start_date + timedelta(days=i)
-        b, rev = rows.get(d, (0, 0))
+        b, rev = rows.get(d, (0, 0.0))
         output.append({"date": d.isoformat(), "bookings": b, "revenue": rev})
     return output

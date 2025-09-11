@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, DateTime, Text, ForeignKey, Enum,
-    UniqueConstraint, Index
+    UniqueConstraint, Index, Float
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -51,6 +51,7 @@ class Event(Base):
     start_time = Column(DateTime(timezone=True), nullable=False)
     end_time = Column(DateTime(timezone=True), nullable=False)
     total_capacity = Column(Integer, nullable=False)
+    base_price = Column(Float, nullable=False, default=50.0)  # Base price per seat
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
@@ -59,6 +60,7 @@ class Event(Base):
     seats = relationship("Seat", back_populates="event", cascade="all, delete-orphan")
     bookings = relationship("Booking", back_populates="event", cascade="all, delete-orphan")
     waitlist_entries = relationship("WaitlistEntry", back_populates="event", cascade="all, delete-orphan")
+    seat_analytics = relationship("SeatAnalytics", back_populates="event", cascade="all, delete-orphan")
 
 
 class Seat(Base):
@@ -124,3 +126,29 @@ class WaitlistEntry(Base):
     # Relationships
     user = relationship("User", back_populates="waitlist_entries")
     event = relationship("Event", back_populates="waitlist_entries")
+
+
+class SeatAnalytics(Base):
+    __tablename__ = "seat_analytics"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    seat_id = Column(UUID(as_uuid=True), ForeignKey("seats.id"), nullable=False)
+    
+    # Analytics data
+    booking_speed_score = Column(Float, default=0.0)  # How fast this seat was booked (0-100)
+    group_booking_score = Column(Float, default=0.0)  # Part of larger group bookings (0-100)
+    popularity_score = Column(Float, default=0.0)     # Overall popularity metric (0-100)
+    
+    # Metadata
+    last_updated = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Constraints
+    __table_args__ = (
+        UniqueConstraint('event_id', 'seat_id', name='uq_event_seat_analytics'),
+        Index('ix_seat_analytics_event_popularity', 'event_id', 'popularity_score'),
+    )
+    
+    # Relationships
+    event = relationship("Event", back_populates="seat_analytics")
+    seat = relationship("Seat")

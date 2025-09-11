@@ -5,13 +5,15 @@ from uuid import UUID
 from ..db.session import get_db
 from ..schemas.schemas import (
     EventCreate, EventUpdate, EventResponse, 
-    AnalyticsSummary, PopularEvent, DailyTrend
+    AnalyticsSummary, PopularEvent, DailyTrend,
+    VenueHeatmapResponse
 )
 from ..crud.event import get_event_by_id, update_event, delete_event, get_events, get_popular_events_stats, get_daily_booking_trends
 from ..crud.booking import get_booking_analytics
 from ..crud.user import get_users
 from ..services.booking import EventService
 from ..services.cache import CacheService
+from ..services.venue_heatmap import VenueHeatmapService
 from ..core.deps import get_current_admin_user
 from ..models.models import User
 from ..schemas.schemas import EventCreate, EventResponse
@@ -46,6 +48,7 @@ async def create_new_event(
             start_time=event_data.start_time,
             end_time=event_data.end_time,
             total_capacity=event_data.total_capacity,
+            base_price=event_data.base_price,
             created_by=current_admin.id
         )
         # Invalidate cached event lists
@@ -179,3 +182,78 @@ async def get_daily_trends(
     """Get real daily booking trends (confirmed bookings and revenue)"""
     data = await get_daily_booking_trends(db, days=days)
     return [DailyTrend(**row) for row in data]
+
+
+# Venue Heatmap endpoints
+@router.get("/events/{event_id}/heatmap", response_model=VenueHeatmapResponse)
+async def get_venue_heatmap(
+    event_id: UUID,
+    refresh: bool = Query(False, description="Force refresh heatmap calculation"),
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Get venue heatmap data for an event (admin only)"""
+    
+    try:
+        # Generate heatmap data
+        heatmap_response = await VenueHeatmapService.generate_venue_heatmap(
+            db, event_id, force_refresh=refresh
+        )
+        
+        if not heatmap_response:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Event not found"
+            )
+        
+        return heatmap_response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate venue heatmap: {str(e)}"
+        )
+
+
+@router.post("/events/{event_id}/heatmap/refresh")
+async def refresh_venue_heatmap(
+    event_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Force refresh venue heatmap analytics (admin only)"""
+    
+    try:
+        # Check if event exists
+        event = await get_event_by_id(db, event_id)
+        if not event:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Event not found"
+            )
+        
+        # Force refresh heatmap data
+        heatmap_response = await VenueHeatmapService.generate_venue_heatmap(
+            db, event_id, force_refresh=True
+        )
+        
+        # Commit any analytics updates
+        await db.commit()
+        
+        return {
+            "message": "Venue heatmap refreshed successfully",
+            "event_id": event_id,
+            "total_seats": heatmap_response.total_seats if heatmap_response else 0,
+            "last_updated": heatmap_response.last_updated if heatmap_response else None
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to refresh venue heatmap: {str(e)}"
+        )

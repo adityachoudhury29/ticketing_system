@@ -107,6 +107,7 @@ class EventService:
         end_time,
         total_capacity: int,
         created_by: UUID,
+        base_price: float = 50.0,
         seat_layout: Optional[List[str]] = None
     ):
         """
@@ -122,6 +123,7 @@ class EventService:
                 start_time=start_time,
                 end_time=end_time,
                 total_capacity=total_capacity,
+                base_price=base_price,
                 created_by=created_by
             )
             db.add(event)
