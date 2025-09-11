@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
+from uuid import UUID
 from ..db.session import get_db
 from ..schemas.schemas import BookingCreate, BookingResponse, TicketResponse
 from ..crud.booking import get_user_bookings, get_booking_by_id
@@ -58,7 +59,7 @@ async def get_my_bookings(
 
 @router.delete("/{booking_id}", response_model=BookingResponse, status_code=200)
 async def cancel_booking(
-    booking_id: int,
+    booking_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -72,7 +73,7 @@ async def cancel_booking(
 
 @router.get("/{booking_id}", response_model=BookingResponse)
 async def get_booking(
-    booking_id: int,
+    booking_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):

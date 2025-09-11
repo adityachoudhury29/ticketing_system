@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from datetime import datetime, timedelta
+from uuid import UUID
 from ..db.session import get_db
 from ..schemas.schemas import (
     EventCreate, EventUpdate, EventResponse, 
@@ -62,7 +63,7 @@ async def create_new_event(
 
 @router.put("/events/{event_id}", response_model=EventResponse)
 async def update_existing_event(
-    event_id: int,
+    event_id: UUID,
     event_data: EventUpdate,
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
@@ -89,7 +90,7 @@ async def update_existing_event(
 
 @router.delete("/events/{event_id}")
 async def delete_existing_event(
-    event_id: int,
+    event_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(get_current_admin_user)
 ):

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
+from uuid import UUID
 from ..db.session import get_db
 from ..schemas.schemas import EventResponse, SeatMapResponse, SeatResponse
 from ..crud.event import get_events, get_event_by_id, get_event_seats
@@ -41,7 +42,7 @@ async def list_events(
 
 @router.get("/{event_id}", response_model=EventResponse)
 async def get_event(
-    event_id: int,
+    event_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
@@ -72,7 +73,7 @@ async def get_event(
 
 @router.get("/{event_id}/seats", response_model=SeatMapResponse)
 async def get_event_seat_map(
-    event_id: int,
+    event_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):

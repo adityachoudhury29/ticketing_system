@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete, and_, func
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
+from uuid import UUID
 from ..models.models import User, UserRole
 from ..core.security import get_password_hash, verify_password
 
@@ -26,7 +27,7 @@ async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
     return result.scalar_one_or_none()
 
 
-async def get_user_by_id(db: AsyncSession, user_id: int) -> Optional[User]:
+async def get_user_by_id(db: AsyncSession, user_id: UUID) -> Optional[User]:
     """Get user by ID"""
     result = await db.execute(select(User).where(User.id == user_id))
     return result.scalar_one_or_none()

@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, ConfigDict
 from datetime import datetime
 from typing import List, Optional
 from enum import Enum
+from uuid import UUID
 
 
 class UserRole(str, Enum):
@@ -34,7 +35,7 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
-    id: int
+    id: UUID
     email: str
     role: UserRole
     created_at: datetime
@@ -62,7 +63,7 @@ class EventUpdate(BaseModel):
 class EventResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
-    id: int
+    id: UUID
     name: str
     venue: str
     description: Optional[str]
@@ -76,19 +77,19 @@ class EventResponse(BaseModel):
 class SeatResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
-    id: int
+    id: UUID
     seat_identifier: str
     status: SeatStatus
 
 
 class SeatMapResponse(BaseModel):
-    event_id: int
+    event_id: UUID
     seats: List[SeatResponse]
 
 
 # Booking schemas
 class BookingCreate(BaseModel):
-    event_id: int
+    event_id: UUID
     seat_identifiers: List[str]
 
 
@@ -96,16 +97,16 @@ class BookingCreate(BaseModel):
 class TicketResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
-    id: int
-    seat_id: int
+    id: UUID
+    seat_id: UUID
     qr_code_data: str
 
 
 class BookingResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
-    id: int
-    event_id: int
+    id: UUID
+    event_id: UUID
     status: BookingStatus
     created_at: datetime
     tickets: List[TicketResponse]
@@ -113,14 +114,14 @@ class BookingResponse(BaseModel):
 
 # Waitlist schemas
 class WaitlistJoin(BaseModel):
-    event_id: int
+    event_id: UUID
 
 
 class WaitlistResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
-    id: int
-    event_id: int
+    id: UUID
+    event_id: UUID
     joined_at: datetime
 
 
@@ -143,7 +144,7 @@ class AnalyticsSummary(BaseModel):
 
 
 class PopularEvent(BaseModel):
-    event_id: int
+    event_id: UUID
     event_name: str
     booking_count: int
 

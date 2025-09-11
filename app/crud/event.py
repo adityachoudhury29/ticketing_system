@@ -3,6 +3,7 @@ from sqlalchemy import select, update, delete, and_, func
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from datetime import datetime, timezone
+from uuid import UUID
 from sqlalchemy import exc as sa_exc
 from ..models.models import Event, Seat, SeatStatus
 
@@ -15,7 +16,7 @@ async def create_event(
     start_time: datetime,
     end_time: datetime,
     total_capacity: int,
-    created_by: int
+    created_by: UUID
 ) -> Event:
     """Create a new event"""
     db_event = Event(
@@ -33,7 +34,7 @@ async def create_event(
     return db_event
 
 
-async def get_event_by_id(db: AsyncSession, event_id: int) -> Optional[Event]:
+async def get_event_by_id(db: AsyncSession, event_id: UUID) -> Optional[Event]:
     """Get event by ID"""
     result = await db.execute(
         select(Event).where(Event.id == event_id)
@@ -61,7 +62,7 @@ async def get_events(
 
 async def update_event(
     db: AsyncSession,
-    event_id: int,
+    event_id: UUID,
     update_data: dict
 ) -> Optional[Event]:
     """Update an event"""
@@ -77,7 +78,7 @@ async def update_event(
     return await get_event_by_id(db, event_id)
 
 
-async def delete_event(db: AsyncSession, event_id: int) -> bool:
+async def delete_event(db: AsyncSession, event_id: UUID) -> bool:
     """Delete an event with ORM cascades (seats, bookings, tickets, waitlist)."""
     try:
         event = await get_event_by_id(db, event_id)
@@ -92,7 +93,7 @@ async def delete_event(db: AsyncSession, event_id: int) -> bool:
         raise RuntimeError(f"Failed to delete event: {e}")
 
 
-async def create_seats_for_event(db: AsyncSession, event_id: int, seat_identifiers: List[str]) -> List[Seat]:
+async def create_seats_for_event(db: AsyncSession, event_id: UUID, seat_identifiers: List[str]) -> List[Seat]:
     """Create seats for an event, skipping existing (idempotent)."""
     if not seat_identifiers:
         return []
@@ -122,7 +123,7 @@ async def create_seats_for_event(db: AsyncSession, event_id: int, seat_identifie
     return seats
 
 
-async def get_event_seats(db: AsyncSession, event_id: int) -> List[Seat]:
+async def get_event_seats(db: AsyncSession, event_id: UUID) -> List[Seat]:
     """Get all seats for an event"""
     result = await db.execute(
         select(Seat).where(Seat.event_id == event_id).order_by(Seat.id)
@@ -130,7 +131,7 @@ async def get_event_seats(db: AsyncSession, event_id: int) -> List[Seat]:
     return result.scalars().all()
 
 
-async def get_available_seats_count(db: AsyncSession, event_id: int) -> int:
+async def get_available_seats_count(db: AsyncSession, event_id: UUID) -> int:
     """Count available seats for an event"""
     result = await db.execute(
         select(func.count(Seat.id)).where(

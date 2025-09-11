@@ -1,6 +1,7 @@
 import redis
 import json
 from typing import Optional, List, Any
+from uuid import UUID
 from ..core.config import settings
 
 # Redis client with error handling
@@ -72,9 +73,9 @@ def get_events_cache_key(skip: int = 0, limit: int = 100) -> str:
     return f"events:list:{skip}:{limit}"
 
 
-def get_event_cache_key(event_id: int) -> str:
+def get_event_cache_key(event_id: UUID) -> str:
     return f"event:{event_id}"
 
 
-def get_event_seats_cache_key(event_id: int) -> str:
+def get_event_seats_cache_key(event_id: UUID) -> str:
     return f"event:{event_id}:seats"

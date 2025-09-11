@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
+from uuid import UUID
 from ..crud import booking as booking_crud, event as event_crud, waitlist as waitlist_crud, user as user_crud
 from ..models.models import Booking, BookingStatus, Seat, SeatStatus, Event
 from .cache import CacheService, get_event_cache_key, get_event_seats_cache_key
@@ -15,8 +16,8 @@ class BookingService:
     @staticmethod
     async def create_booking(
         db: AsyncSession,
-        user_id: int,
-        event_id: int,
+        user_id: UUID,
+        event_id: UUID,
         seat_identifiers: List[str]
     ) -> Booking:
         """
@@ -43,7 +44,7 @@ class BookingService:
             # Send booking confirmation email asynchronously
             try:
                 from ..worker.tasks import send_booking_confirmation_email
-                send_booking_confirmation_email.delay(booking.id)
+                send_booking_confirmation_email.delay(str(booking.id))
             except Exception as e:
                 print(f"Failed to enqueue booking confirmation email task: {e}")
                 pass
@@ -60,8 +61,8 @@ class BookingService:
     @staticmethod
     async def cancel_booking(
         db: AsyncSession,
-        booking_id: int,
-        user_id: int
+        booking_id: UUID,
+        user_id: UUID
     ) -> Optional[Booking]:
         booking = await booking_crud.cancel_booking(db, booking_id, user_id)
         logger.info("Cancelled booking %s for user %s", booking_id, user_id)
@@ -74,7 +75,7 @@ class BookingService:
             try:
                 logger.info("Enqueuing cancellation email for booking %s", booking.id)
                 from ..worker.tasks import send_booking_cancellation_email
-                send_booking_cancellation_email.delay(booking.id)
+                send_booking_cancellation_email.delay(str(booking.id))
             except Exception as e:
                 # Log error but don't fail the cancellation
                 logger.exception("Failed to enqueue cancellation email task for booking %s %s", booking.id, e)
@@ -85,7 +86,7 @@ class BookingService:
             if available > 0:
                 try:
                     from ..worker.tasks import notify_waitlist_user
-                    notify_waitlist_user.delay(booking.event_id)
+                    notify_waitlist_user.delay(str(booking.event_id))
                 except Exception:
                     pass
         return booking
@@ -107,7 +108,7 @@ class EventService:
         start_time,
         end_time,
         total_capacity: int,
-        created_by: int,
+        created_by: UUID,
         seat_layout: Optional[List[str]] = None
     ):
         """

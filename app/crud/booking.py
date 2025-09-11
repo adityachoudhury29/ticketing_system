@@ -3,6 +3,7 @@ from sqlalchemy import select, update, delete, and_, func, or_
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from datetime import datetime
+from uuid import UUID
 import uuid
 import logging
 from ..models.models import Booking, Ticket, Seat, SeatStatus, BookingStatus, Event
@@ -11,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 async def create_booking_with_seats(
     db: AsyncSession,
-    user_id: int,
-    event_id: int,
+    user_id: UUID,
+    event_id: UUID,
     seat_identifiers: List[str]
 ) -> Booking:
     """
@@ -82,7 +83,7 @@ async def create_booking_with_seats(
 
 async def get_user_bookings(
     db: AsyncSession,
-    user_id: int,
+    user_id: UUID,
     skip: int = 0,
     limit: int = 100
 ) -> List[Booking]:
@@ -98,7 +99,7 @@ async def get_user_bookings(
     return result.scalars().all()
 
 
-async def get_booking_by_id(db: AsyncSession, booking_id: int) -> Optional[Booking]:
+async def get_booking_by_id(db: AsyncSession, booking_id: UUID) -> Optional[Booking]:
     """Get booking by ID with tickets"""
     result = await db.execute(
         select(Booking)
@@ -110,8 +111,8 @@ async def get_booking_by_id(db: AsyncSession, booking_id: int) -> Optional[Booki
 
 async def cancel_booking(
     db: AsyncSession,
-    booking_id: int,
-    user_id: int
+    booking_id: UUID,
+    user_id: UUID
 ) -> Optional[Booking]:
     """
     Cancel a booking owned by user_id (idempotent).

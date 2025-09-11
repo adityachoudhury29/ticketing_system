@@ -2,9 +2,11 @@ from sqlalchemy import (
     Column, Integer, String, DateTime, Text, ForeignKey, Enum,
     UniqueConstraint, Index
 )
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from enum import Enum as PyEnum
+import uuid
 from ..db.session import Base
 
 
@@ -27,7 +29,7 @@ class BookingStatus(PyEnum):
 class User(Base):
     __tablename__ = "users"
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     role = Column(Enum(UserRole), default=UserRole.USER)
@@ -42,14 +44,14 @@ class User(Base):
 class Event(Base):
     __tablename__ = "events"
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     name = Column(String, nullable=False)
     venue = Column(String, nullable=False)
     description = Column(Text)
     start_time = Column(DateTime(timezone=True), nullable=False)
     end_time = Column(DateTime(timezone=True), nullable=False)
     total_capacity = Column(Integer, nullable=False)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
@@ -62,8 +64,8 @@ class Event(Base):
 class Seat(Base):
     __tablename__ = "seats"
     
-    id = Column(Integer, primary_key=True, index=True)
-    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
     seat_identifier = Column(String, nullable=False)  # e.g., 'A1', 'SEC-B-R5-S12'
     status = Column(Enum(SeatStatus), default=SeatStatus.AVAILABLE, index=True)
     
@@ -81,9 +83,9 @@ class Seat(Base):
 class Booking(Base):
     __tablename__ = "bookings"
     
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
     status = Column(Enum(BookingStatus), default=BookingStatus.CONFIRMED)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
@@ -96,9 +98,9 @@ class Booking(Base):
 class Ticket(Base):
     __tablename__ = "tickets"
     
-    id = Column(Integer, primary_key=True, index=True)
-    booking_id = Column(Integer, ForeignKey("bookings.id"), nullable=False)
-    seat_id = Column(Integer, ForeignKey("seats.id"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    booking_id = Column(UUID(as_uuid=True), ForeignKey("bookings.id"), nullable=False)
+    seat_id = Column(UUID(as_uuid=True), ForeignKey("seats.id"), nullable=False)
     qr_code_data = Column(String, nullable=False)
     
     # Relationships
@@ -109,9 +111,9 @@ class Ticket(Base):
 class WaitlistEntry(Base):
     __tablename__ = "waitlist_entries"
     
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
     joined_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Constraints

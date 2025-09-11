@@ -3,6 +3,7 @@ from celery import current_task
 from .celery_app import celery_app
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker, selectinload
+from uuid import UUID
 from ..core.config import settings
 from ..models.models import User, Event, Booking, BookingStatus, WaitlistEntry, Ticket
 from ..services.email import EmailService
@@ -21,7 +22,7 @@ email_service = EmailService()
 
 
 @celery_app.task
-def notify_waitlist_user(event_id: int):
+def notify_waitlist_user(event_id):  # Can be UUID object or string
     """
     Background task to notify the next user on the waitlist
     when seats become available for an event.
@@ -29,8 +30,14 @@ def notify_waitlist_user(event_id: int):
     try:
         with SyncSessionLocal() as db:
             # Get the next waitlist user for this event
+            # Handle both UUID objects and strings
+            if isinstance(event_id, str):
+                event_uuid = UUID(event_id)
+            else:
+                event_uuid = event_id  # Already a UUID object
+            
             waitlist_entry = db.query(WaitlistEntry).filter(
-                WaitlistEntry.event_id == event_id
+                WaitlistEntry.event_id == event_uuid
             ).first()
             
             if not waitlist_entry:
@@ -39,7 +46,7 @@ def notify_waitlist_user(event_id: int):
 
             # Get user and event
             user = db.query(User).filter(User.id == waitlist_entry.user_id).first()
-            event = db.query(Event).filter(Event.id == event_id).first()
+            event = db.query(Event).filter(Event.id == event_uuid).first()
 
             if not user or not event:
                 logger.error("Missing user or event while notifying waitlist (user=%s event=%s)", user, event)
@@ -60,16 +67,22 @@ def notify_waitlist_user(event_id: int):
 
 
 @celery_app.task
-def send_booking_confirmation_email(booking_id: int):
+def send_booking_confirmation_email(booking_id):  # Can be UUID object or string
     """
     Background task to send booking confirmation email.
     """
     try:
         with SyncSessionLocal() as db:
             # Get booking with tickets loaded
+            # Handle both UUID objects and strings
+            if isinstance(booking_id, str):
+                booking_uuid = UUID(booking_id)
+            else:
+                booking_uuid = booking_id  # Already a UUID object
+            
             booking = db.query(Booking).options(
                 selectinload(Booking.tickets)
-            ).filter(Booking.id == booking_id).first()
+            ).filter(Booking.id == booking_uuid).first()
             
             if not booking:
                 logger.error("Booking %s not found for confirmation email", booking_id)
@@ -98,16 +111,22 @@ def send_booking_confirmation_email(booking_id: int):
 
 
 @celery_app.task
-def send_booking_cancellation_email(booking_id: int):
+def send_booking_cancellation_email(booking_id):  # Can be UUID object or string
     """
     Background task to send booking cancellation email.
     """
     try:
         with SyncSessionLocal() as db:
             # Get booking with tickets loaded (even if cancelled)
+            # Handle both UUID objects and strings
+            if isinstance(booking_id, str):
+                booking_uuid = UUID(booking_id)
+            else:
+                booking_uuid = booking_id  # Already a UUID object
+            
             booking = db.query(Booking).options(
                 selectinload(Booking.tickets)
-            ).filter(Booking.id == booking_id).first()
+            ).filter(Booking.id == booking_uuid).first()
             
             if not booking:
                 logger.error("Booking %s not found for cancellation email", booking_id)
