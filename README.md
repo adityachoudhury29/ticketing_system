@@ -1,241 +1,116 @@
-# Evently - Event Ticketing Platform Backend
+# Evently - Event Ticketing Platform
 
-A complete, production-ready, and scalable backend for an event ticketing platform with seat-level booking and concurrency control.
+A production-ready event ticketing platform backend built with FastAPI, featuring seat-level booking, concurrency control, and real-time notifications.
 
-## 🚀 Features
+## Features
 
-- **Seat-Level Booking**: Users can select and book specific seats
-- **Concurrency Control**: Pessimistic locking prevents overselling
-- **High Performance**: Redis caching for read-heavy operations
-- **Async Processing**: Celery workers for background tasks
-- **Scalable Architecture**: Microservices-ready design
-- **Production Ready**: Docker containerization with PostgreSQL
+- **Seat-Level Booking**: Select and book specific seats for events
+- **Concurrency Control**: Prevents overselling with pessimistic locking
+- **Background Tasks**: Async processing with Celery workers  
+- **Caching**: Redis for high-performance read operations
+- **Authentication**: JWT-based user authentication
+- **Admin Panel**: Event management and analytics
+- **Waitlist**: Join waitlists when events are sold out
 
-## 🏗️ Architecture
+## Tech Stack
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   FastAPI App   │    │   PostgreSQL    │    │     Redis       │
-│                 │◄──►│                 │    │                 │
-│  • REST APIs    │    │  • Event Data   │    │  • Caching      │
-│  • Auth         │    │  • Bookings     │    │  • Sessions     │
-│  • Validation   │    │  • Users        │    │  • Task Queue   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                                              ▲
-         ▼                                              │
-┌─────────────────┐                              ┌─────────────────┐
-│ Celery Workers  │                              │   Load Balancer │
-│                 │                              │                 │
-│ • Notifications │                              │  (Nginx/HAProxy)│
-│ • Analytics     │                              │                 │
-│ • Cleanup       │                              └─────────────────┘
-└─────────────────┘
-```
-
-## 🛠️ Technology Stack
-
-- **Framework**: FastAPI (Python)
+- **Backend**: FastAPI (Python 3.10+)
 - **Database**: PostgreSQL with AsyncPG
-- **ORM**: SQLAlchemy (Async)
-- **Caching**: Redis
-- **Task Queue**: Celery
-- **Validation**: Pydantic
+- **Cache**: Redis
+- **Task Queue**: Celery with Redis broker
 - **Authentication**: JWT tokens
 - **Containerization**: Docker & Docker Compose
 
-## 📋 Prerequisites
+## Prerequisites
 
 - Docker and Docker Compose
 - Python 3.10+ (for local development)
 - Git
 
-## 🚀 Quick Start
+## Quick Start with Docker
 
-### 1. Clone and Setup
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/adityachoudhury29/ticketing_system
+   cd ticketing_system
+   ```
 
-```bash
-git clone <repository-url>
-cd evently-backend
-cp .env.example .env  # Edit with your settings
-```
+2. **Set up environment**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
 
-### 2. Run with Docker
+3. **Start all services**
+   ```bash
+   sudo docker-compose up -d --build
+   ```
 
-```bash
-# Start all services
-docker-compose up -d
+4. **Check services status**
+   ```bash
+   docker-compose ps
+   ```
 
-# Check service health
-docker-compose ps
+5. **Access the application**
+   - API Documentation: http://localhost:8000/docs
+   - API Base URL: http://localhost:8000
+   - Health Check: http://localhost:8000/health
 
-# View logs
-docker-compose logs -f fastapi-app
-```
-
-### 3. Access the Application
-
-- **API Documentation**: http://localhost:8000/docs
-- **API Base URL**: http://localhost:8000
-- **Flower (Celery Monitor)**: http://localhost:5555
-- **Health Check**: http://localhost:8000/health
-
-## 📚 API Endpoints
+## API Endpoints
 
 ### Authentication
 - `POST /auth/register` - Register new user
 - `POST /auth/login` - User login
 
-### Events (Public)
-- `GET /events/` - List upcoming events (cached)
+### Events
+- `GET /events/` - List events
 - `GET /events/{event_id}` - Get event details
-- `GET /events/{event_id}/seats` - Get seat map
+- `GET /events/{event_id}/seats` - Get available seats
 
-### Bookings (Authenticated)
-- `POST /bookings/` - Create booking with seat selection
-- `GET /bookings/my-bookings` - User's booking history
+### Bookings
+- `POST /bookings/` - Create booking
+- `GET /bookings/my-bookings` - User's bookings
 - `POST /bookings/{booking_id}/cancel` - Cancel booking
 
-### Waitlist (Authenticated)
+### Waitlist
 - `POST /waitlist/join` - Join event waitlist
 - `GET /waitlist/my-entries` - User's waitlist entries
 
-### Admin (Admin Only)
+### Admin
 - `POST /admin/events` - Create event
 - `PUT /admin/events/{event_id}` - Update event
 - `DELETE /admin/events/{event_id}` - Delete event
-- `GET /admin/analytics/summary` - Analytics dashboard
+- `GET /admin/analytics/summary` - Get analytics
 
-## 🔒 Concurrency Control
+## Environment Variables
 
-The system implements **pessimistic locking** for seat booking:
+Copy `.env.example` to `.env` and configure the following:
 
-1. **Transaction Start**: Begin database transaction
-2. **Seat Locking**: `SELECT ... FOR UPDATE` on specific seats
-3. **Validation**: Check if seats are available
-4. **Booking Creation**: Create booking and tickets
-5. **Commit**: Release locks and confirm booking
+- `DATABASE_URL` - PostgreSQL connection string
+- `REDIS_URL` - Redis connection string
+- `SECRET_KEY` - JWT secret key
+- `CELERY_BROKER_URL` - Celery broker URL
+- `CELERY_RESULT_BACKEND` - Celery result backend
+- Email configuration for notifications
 
-This prevents overselling even under high concurrency.
-
-## 📊 Caching Strategy
-
-**Cache-Aside Pattern** with Redis:
-- **Events List**: 30 minutes TTL
-- **Event Details**: 1 hour TTL  
-- **Seat Maps**: 5 minutes TTL (frequent updates)
-
-Cache invalidation occurs on:
-- Event modifications
-- Seat status changes
-- Booking creations/cancellations
-
-## 🔄 Background Tasks
-
-Celery handles async operations:
-- **Waitlist Notifications**: When seats become available
-- **Analytics Generation**: Daily/weekly reports
-- **Cleanup Tasks**: Remove expired bookings
-
-## 🗄️ Database Schema
-
-```sql
--- Core entities with relationships
-Users (id, email, role, created_at)
-Events (id, name, venue, start_time, total_capacity)
-Seats (id, event_id, seat_identifier, status)
-Bookings (id, user_id, event_id, status, created_at)
-Tickets (id, booking_id, seat_id, qr_code_data)
-WaitlistEntries (id, user_id, event_id, joined_at)
-```
-
-## 🧪 Testing
-
-```bash
-# Run tests (when implemented)
-docker-compose exec fastapi-app pytest
-
-# Load testing with hey or wrk
-hey -n 1000 -c 50 http://localhost:8000/events/
-```
-
-## 📈 Monitoring & Observability
-
-- **Application Logs**: Structured JSON logging
-- **Health Checks**: `/health` endpoint
-- **Celery Monitoring**: Flower dashboard
-- **Database Metrics**: PostgreSQL built-in stats
-
-## 🚀 Production Deployment
-
-### Environment Variables
-
-```bash
-# Database
-DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/db
-
-# Redis
-REDIS_URL=redis://host:6379/0
-
-# Security
-SECRET_KEY=your-secret-key
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-
-# Celery
-CELERY_BROKER_URL=redis://host:6379/0
-```
-
-### Scaling Considerations
-
-1. **Horizontal Scaling**: Multiple FastAPI instances behind load balancer
-2. **Database**: Read replicas for analytics
-3. **Cache**: Redis Cluster for high availability
-4. **Workers**: Scale Celery workers based on queue length
-
-### Security Best Practices
-
-- Use strong SECRET_KEY in production
-- Enable HTTPS/TLS
-- Configure CORS appropriately
-- Implement rate limiting
-- Use environment-specific .env files
-
-## 🤝 Development
-
-### Local Development Setup
-
-```bash
-# Create virtual environment
-python -m venv myenv
-source myenv/bin/activate  # or myenv\Scripts\activate on Windows
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run locally (requires Redis and PostgreSQL)
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### Code Structure
+## Project Structure
 
 ```
 app/
 ├── api/          # API route handlers
-├── core/         # Core functionality (config, security)
+├── core/         # Core functionality (config, security, exceptions)
 ├── crud/         # Database operations
 ├── models/       # SQLAlchemy models
-├── schemas/      # Pydantic schemas
-├── services/     # Business logic
-├── worker/       # Celery tasks
-└── main.py       # FastAPI application
+├── schemas/      # Pydantic schemas for validation
+├── services/     # Business logic layer
+├── worker/       # Celery tasks and workers
+└── main.py       # FastAPI application entry point
 ```
 
-## 📝 License
+## Contributing
 
-[Your License Here]
-
-## 🆘 Support
-
-For issues and questions:
-1. Check the [API Documentation](http://localhost:8000/docs)
-2. Review application logs: `docker-compose logs -f`
-3. Open an issue in the repository
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
