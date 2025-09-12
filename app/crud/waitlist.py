@@ -60,3 +60,13 @@ async def get_user_waitlist_entries(
         .limit(limit)
     )
     return result.scalars().all()
+
+
+async def get_all_waitlist_users(db: AsyncSession, event_id: UUID) -> List[WaitlistEntry]:
+    """Get all users on the waitlist for an event, ordered by join time (first-come, first-served)"""
+    result = await db.execute(
+        select(WaitlistEntry)
+        .where(WaitlistEntry.event_id == event_id)
+        .order_by(WaitlistEntry.joined_at)
+    )
+    return result.scalars().all()

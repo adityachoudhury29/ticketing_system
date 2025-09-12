@@ -22,8 +22,8 @@ email_service = EmailService()
 @celery_app.task
 def notify_waitlist_user(event_id):  # Can be UUID object or string
     """
-    Background task to notify the next user on the waitlist
-    when seats become available for an event.
+    DEPRECATED: Background task to notify the next user on the waitlist.
+    Use notify_all_waitlist_users instead for better user experience.
     """
     try:
         with SyncSessionLocal() as db:
@@ -61,6 +61,73 @@ def notify_waitlist_user(event_id):  # Can be UUID object or string
         return f"Processed waitlist notification for event {event_id}"
     except Exception as e:
         logger.exception("Failed to process waitlist notification for event %s: %s", event_id, e)
+        raise
+
+
+@celery_app.task
+def notify_all_waitlist_users(event_id):  # Can be UUID object or string
+    """
+    Background task to notify ALL users on the waitlist
+    when seats become available for an event.
+    This gives everyone a fair chance to book newly available seats.
+    """
+    try:
+        with SyncSessionLocal() as db:
+            # Handle both UUID objects and strings
+            if isinstance(event_id, str):
+                event_uuid = UUID(event_id)
+            else:
+                event_uuid = event_id  # Already a UUID object
+            
+            # Get all waitlist users for this event, ordered by join time
+            waitlist_entries = db.query(WaitlistEntry).filter(
+                WaitlistEntry.event_id == event_uuid
+            ).order_by(WaitlistEntry.joined_at).all()
+            
+            if not waitlist_entries:
+                logger.info("No waitlist entries found for event %s", event_id)
+                return f"No waitlist entries for event {event_id}"
+
+            # Get event details
+            event = db.query(Event).filter(Event.id == event_uuid).first()
+            if not event:
+                logger.error("Event %s not found while notifying waitlist", event_id)
+                return f"Event {event_id} not found"
+
+            # Send notifications to all waitlisted users
+            successful_notifications = 0
+            failed_notifications = 0
+            
+            for waitlist_entry in waitlist_entries:
+                user = db.query(User).filter(User.id == waitlist_entry.user_id).first()
+                
+                if not user:
+                    logger.warning("User %s not found for waitlist entry", waitlist_entry.user_id)
+                    failed_notifications += 1
+                    continue
+
+                try:
+                    # Send the notification email (synchronously)
+                    import asyncio
+                    sent = asyncio.run(email_service.send_waitlist_notification(user, event))
+                    if sent:
+                        logger.info("Sent waitlist email to user %s for event %s", user.email, event.id)
+                        successful_notifications += 1
+                    else:
+                        logger.warning("Failed to send waitlist email to user %s for event %s", user.email, event.id)
+                        failed_notifications += 1
+                except Exception as e:
+                    logger.exception("Error sending waitlist notification to user %s: %s", user.email, e)
+                    failed_notifications += 1
+
+        logger.info(
+            "Waitlist notification summary for event %s: %d successful, %d failed",
+            event_id, successful_notifications, failed_notifications
+        )
+        return f"Sent {successful_notifications} waitlist notifications for event {event_id} ({failed_notifications} failed)"
+        
+    except Exception as e:
+        logger.exception("Failed to process waitlist notifications for event %s: %s", event_id, e)
         raise
 
 

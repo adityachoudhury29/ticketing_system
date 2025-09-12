@@ -79,14 +79,15 @@ class BookingService:
                 logger.exception("Failed to enqueue cancellation email task for booking %s %s", booking.id, e)
                 pass
             
-            # Optionally notify waitlist if seats freed
+            # Notify ALL waitlisted users when seats become available
             available = await event_crud.get_available_seats_count(db, booking.event_id)
             if available > 0:
                 try:
-                    from ..worker.tasks import notify_waitlist_user
-                    notify_waitlist_user.delay(str(booking.event_id))
-                except Exception:
-                    pass
+                    logger.info("Seats became available for event %s, notifying all waitlisted users", booking.event_id)
+                    from ..worker.tasks import notify_all_waitlist_users
+                    notify_all_waitlist_users.delay(str(booking.event_id))
+                except Exception as e:
+                    logger.exception("Failed to enqueue waitlist notification task for event %s: %s", booking.event_id, e)
         return booking
 
 class EventService:

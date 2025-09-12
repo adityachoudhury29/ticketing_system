@@ -101,21 +101,26 @@ class EmailService:
         return await self.send_email(user.email, subject, body, html)
 
     async def send_waitlist_notification(self, user: User, event: Event) -> bool:
-        subject = f"Seats available — {event.name}"
+        subject = f"🎟️ Seats Now Available — {event.name}"
         body = (
             f"Hi {getattr(user, 'name', 'there')},\n\n"
-            f"Seats are available for the event you were waitlisted for:\n\n"
+            f"Great news! Due to a recent cancellation, seats are now available for the event you were waitlisted for:\n\n"
             f"Event: {event.name}\n"
             f"Venue: {event.venue}\n"
             f"Date: {event.start_time.strftime('%B %d, %Y at %I:%M %p')}\n\n"
-            "Visit the site and complete your booking before seats run out!\n\n"
+            "⚡ ACT FAST: This notification has been sent to all waitlisted users. "
+            "Visit the site now to secure your spot before seats are taken!\n\n"
             "Best,\nEvently Team"
         )
         html = (
             f"<p>Hi {getattr(user, 'name', 'there')},</p>"
-            f"<p>Good news — seats are available for <strong>{event.name}</strong>!</p>"
+            f"<p><strong>🎉 Great news!</strong> Due to a recent cancellation, seats are now available for <strong>{event.name}</strong>!</p>"
+            f"<div style='background-color: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px;'>"
+            f"<p><strong>Event:</strong> {event.name}</p>"
+            f"<p><strong>Venue:</strong> {event.venue}</p>"
             f"<p><strong>Date:</strong> {event.start_time.strftime('%B %d, %Y at %I:%M %p')}</p>"
-            "<p><a href=\"#\">Complete your booking</a> before seats are gone.</p>"
+            f"</div>"
+            "<p><strong>⚡ ACT FAST:</strong> This notification has been sent to all waitlisted users.</p>"
             "<p>Best,<br/>Evently Team</p>"
         )
         return await self.send_email(user.email, subject, body, html)
