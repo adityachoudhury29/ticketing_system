@@ -2,10 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from uuid import UUID
+from datetime import datetime, timezone
 from ..db.session import get_db
-from ..schemas.schemas import EventResponse, SeatMapResponse, SeatResponse
+from ..schemas.schemas import EventResponse, EventWithPricingResponse, SeatMapResponse, SeatResponse
 from ..crud.event import get_events, get_event_by_id, get_event_seats
 from ..services.cache import CacheService, get_events_cache_key, get_event_cache_key, get_event_seats_cache_key
+from ..services.pricing import DynamicPricingService
 from ..core.deps import get_current_user_optional
 from ..models.models import User
 
@@ -112,3 +114,45 @@ async def get_event_seat_map(
     )
     
     return SeatMapResponse(event_id=event_id, seats=seats_response)
+
+
+@router.get("/{event_id}/pricing", response_model=EventWithPricingResponse)
+async def get_event_with_pricing(
+    event_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """Get event details with current pricing information"""
+    
+    # Get event details
+    event = await get_event_by_id(db, event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found"
+        )
+    
+    # Calculate current pricing
+    current_price = DynamicPricingService.calculate_current_price(
+        event.base_price, event.start_time
+    )
+    
+    now = datetime.now(timezone.utc)
+    days_until_event = max(0, (event.start_time - now).days)
+    price_multiplier = DynamicPricingService.calculate_pricing_multiplier(days_until_event)
+    
+    # Build response with pricing information
+    return EventWithPricingResponse(
+        id=event.id,
+        name=event.name,
+        venue=event.venue,
+        description=event.description,
+        start_time=event.start_time,
+        end_time=event.end_time,
+        total_capacity=event.total_capacity,
+        base_price=event.base_price,
+        current_price=current_price,
+        price_multiplier=price_multiplier,
+        days_until_event=days_until_event,
+        created_at=event.created_at
+    )

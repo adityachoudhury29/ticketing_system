@@ -89,6 +89,13 @@ class Booking(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
     status = Column(Enum(BookingStatus), default=BookingStatus.CONFIRMED)
+    
+    # Pricing information
+    base_price_per_ticket = Column(Float, nullable=False)  # Base price at time of booking
+    final_price_per_ticket = Column(Float, nullable=False)  # Final price paid per ticket
+    price_multiplier = Column(Float, nullable=False, default=1.0)  # Multiplier applied
+    total_amount = Column(Float, nullable=False)  # Total amount paid for all tickets
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships

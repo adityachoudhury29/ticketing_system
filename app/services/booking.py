@@ -4,6 +4,7 @@ from uuid import UUID
 from ..crud import booking as booking_crud, event as event_crud
 from ..models.models import Booking, Seat, SeatStatus, Event
 from .cache import CacheService, get_event_seats_cache_key
+from .pricing import DynamicPricingService
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,10 +17,11 @@ class BookingService:
         db: AsyncSession,
         user_id: UUID,
         event_id: UUID,
-        seat_identifiers: List[str]
+        seat_identifiers: List[str],
+        acknowledged_price_per_ticket: Optional[float] = None
     ) -> Booking:
         """
-        Create a booking with proper transaction handling.
+        Create a booking with proper transaction handling and dynamic pricing.
         This method now handles its own transaction.
         """
         try:
@@ -28,9 +30,33 @@ class BookingService:
             if not event:
                 raise ValueError("Event not found")
             
-            # Create booking (this doesn't commit)
+            # Calculate dynamic pricing
+            current_price = DynamicPricingService.calculate_current_price(
+                event.base_price, event.start_time
+            )
+            
+            # Check if price was acknowledged (optional safety check)
+            if acknowledged_price_per_ticket is not None:
+                price_diff = abs(current_price - acknowledged_price_per_ticket)
+                if price_diff > 0.01:  # Allow small rounding differences
+                    raise ValueError(
+                        f"Price has changed. Current price: ${current_price:.2f}, "
+                        f"acknowledged: ${acknowledged_price_per_ticket:.2f}"
+                    )
+            
+            # Calculate pricing details
+            num_tickets = len(seat_identifiers)
+            pricing_details = DynamicPricingService.calculate_total_booking_cost(
+                event.base_price, event.start_time, num_tickets
+            )
+            
+            # Create booking with pricing information
             booking = await booking_crud.create_booking_with_seats(
-                db, user_id, event_id, seat_identifiers
+                db, user_id, event_id, seat_identifiers,
+                base_price_per_ticket=event.base_price,
+                final_price_per_ticket=current_price,
+                price_multiplier=pricing_details["price_multiplier"],
+                total_amount=pricing_details["total_cost"]
             )
             
             # Commit the transaction

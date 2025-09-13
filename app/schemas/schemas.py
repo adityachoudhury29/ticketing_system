@@ -76,6 +76,23 @@ class EventResponse(BaseModel):
     created_at: datetime
 
 
+class EventWithPricingResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID
+    name: str
+    venue: str
+    description: Optional[str]
+    start_time: datetime
+    end_time: datetime
+    total_capacity: int
+    base_price: float
+    current_price: float
+    price_multiplier: float
+    days_until_event: int
+    created_at: datetime
+
+
 # Seat schemas
 class SeatResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -111,6 +128,13 @@ class BookingResponse(BaseModel):
     id: UUID
     event_id: UUID
     status: BookingStatus
+    
+    # Pricing information
+    base_price_per_ticket: float
+    final_price_per_ticket: float
+    price_multiplier: float
+    total_amount: float
+    
     created_at: datetime
     tickets: List[TicketResponse]
 
@@ -158,6 +182,16 @@ class DailyTrend(BaseModel):
     revenue: float
 
 
+class PricingAnalytics(BaseModel):
+    total_bookings_with_surge: int
+    total_bookings_at_base_price: int
+    average_price_multiplier: float
+    total_surge_revenue: float  # Extra revenue from dynamic pricing
+    base_price_revenue: float   # What revenue would have been at base prices
+    actual_revenue: float       # Actual revenue with dynamic pricing
+    surge_percentage: float     # Percentage of bookings that had surge pricing
+
+
 # Venue Heatmap schemas
 class SeatHeatmapData(BaseModel):
     seat_id: UUID
@@ -176,3 +210,40 @@ class VenueHeatmapResponse(BaseModel):
     capacity_percentage: float
     seats_data: List[SeatHeatmapData]
     last_updated: datetime
+
+
+# Dynamic Pricing schemas
+class PricingTier(BaseModel):
+    start_date: str
+    days_before_event: int
+    price_multiplier: float
+    price: float
+    percentage_increase: float
+
+
+class EventPricingResponse(BaseModel):
+    event_id: UUID
+    event_name: str
+    event_start_time: str
+    base_price: float
+    current_price: float
+    days_until_event: int
+    current_multiplier: float
+    pricing_timeline: List[PricingTier]
+
+
+class BookingCostEstimate(BaseModel):
+    base_price_per_ticket: float
+    current_price_per_ticket: float
+    number_of_tickets: int
+    total_cost: float
+    days_until_event: int
+    price_multiplier: float
+    savings_if_base_price: float
+
+
+class BookingCreateWithPricing(BaseModel):
+    event_id: UUID
+    seat_identifiers: List[str]
+    # Optional field to acknowledge the current price
+    acknowledged_price_per_ticket: Optional[float] = None

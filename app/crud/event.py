@@ -173,15 +173,13 @@ async def get_daily_booking_trends(
     end_date = datetime.now(timezone.utc).date()
     start_date = end_date - timedelta(days=days - 1)
 
-    # Aggregate bookings per day with actual event prices
+    # Aggregate bookings per day with actual amounts paid (including dynamic pricing)
     stmt = (
         select(
             func.date(Booking.created_at).label("day"),
             func.count(Booking.id).label("bookings"),
-            func.sum(Event.base_price).label("daily_revenue")
+            func.sum(Booking.total_amount).label("daily_revenue")
         )
-        .join(Event, Event.id == Booking.event_id)
-        .join(Ticket, Ticket.booking_id == Booking.id, isouter=True)
         .where(
             Booking.status == BookingStatus.CONFIRMED,
             func.date(Booking.created_at) >= start_date,

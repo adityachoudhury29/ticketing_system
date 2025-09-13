@@ -3,9 +3,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from uuid import UUID
 from ..db.session import get_db
-from ..schemas.schemas import BookingCreate, BookingResponse, TicketResponse
+from ..schemas.schemas import (
+    BookingCreate, BookingCreateWithPricing, BookingResponse, TicketResponse,
+    EventPricingResponse, BookingCostEstimate
+)
 from ..crud.booking import get_user_bookings, get_booking_by_id
 from ..services.booking import BookingService
+from ..services.pricing import DynamicPricingService
 from ..core.deps import get_current_user
 from ..models.models import User
 
@@ -13,14 +17,16 @@ router = APIRouter()
 
 @router.post("/", response_model=BookingResponse, status_code=status.HTTP_201_CREATED)
 async def create_booking(
-    booking_data: BookingCreate,
+    booking_data: BookingCreateWithPricing,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     try:
-        # BookingService now handles its own transaction
+        # BookingService now handles its own transaction with dynamic pricing
         booking = await BookingService.create_booking(
-            db, current_user.id, booking_data.event_id, booking_data.seat_identifiers
+            db, current_user.id, booking_data.event_id, 
+            booking_data.seat_identifiers,
+            booking_data.acknowledged_price_per_ticket
         )
         
         # Build response - booking is now committed and relationships are loaded
@@ -28,6 +34,10 @@ async def create_booking(
             id=booking.id,
             event_id=booking.event_id,
             status=booking.status,
+            base_price_per_ticket=booking.base_price_per_ticket,
+            final_price_per_ticket=booking.final_price_per_ticket,
+            price_multiplier=booking.price_multiplier,
+            total_amount=booking.total_amount,
             created_at=booking.created_at,
             tickets=[
                 TicketResponse(
@@ -81,3 +91,40 @@ async def get_booking(
     if not booking or booking.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Booking not found")
     return BookingResponse.model_validate(booking)
+
+
+@router.get("/pricing/event/{event_id}", response_model=EventPricingResponse)
+async def get_event_pricing(
+    event_id: UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get pricing timeline for an event"""
+    try:
+        pricing_info = await DynamicPricingService.get_event_pricing_timeline(db, event_id)
+        return EventPricingResponse.model_validate(pricing_info)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/pricing/estimate", response_model=BookingCostEstimate)
+async def estimate_booking_cost(
+    booking_data: BookingCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Estimate the cost of a booking without creating it"""
+    try:
+        # Get event details
+        from ..crud.event import get_event_by_id
+        event = await get_event_by_id(db, booking_data.event_id)
+        if not event:
+            raise ValueError("Event not found")
+        
+        # Calculate cost
+        num_tickets = len(booking_data.seat_identifiers)
+        cost_estimate = DynamicPricingService.calculate_total_booking_cost(
+            event.base_price, event.start_time, num_tickets
+        )
+        
+        return BookingCostEstimate.model_validate(cost_estimate)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

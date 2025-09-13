@@ -13,7 +13,11 @@ async def create_booking_with_seats(
     db: AsyncSession,
     user_id: UUID,
     event_id: UUID,
-    seat_identifiers: List[str]
+    seat_identifiers: List[str],
+    base_price_per_ticket: float,
+    final_price_per_ticket: float,
+    price_multiplier: float,
+    total_amount: float
 ) -> Booking:
     """
     Create a booking with pessimistic locking.
@@ -50,7 +54,11 @@ async def create_booking_with_seats(
     booking = Booking(
         user_id=user_id,
         event_id=event_id,
-        status=BookingStatus.CONFIRMED
+        status=BookingStatus.CONFIRMED,
+        base_price_per_ticket=base_price_per_ticket,
+        final_price_per_ticket=final_price_per_ticket,
+        price_multiplier=price_multiplier,
+        total_amount=total_amount
     )
     db.add(booking)
     await db.flush()  # Get booking.id
@@ -156,12 +164,9 @@ async def get_booking_analytics(db: AsyncSession) -> dict:
     )
     total_bookings = total_bookings_result.scalar() or 0
     
-    # Revenue calculation using actual event prices
-    from ..models.models import Event, Ticket
+    # Revenue calculation using actual amounts paid (with dynamic pricing)
     revenue_result = await db.execute(
-        select(func.sum(Event.base_price))
-        .join(Booking, Booking.event_id == Event.id)
-        .join(Ticket, Ticket.booking_id == Booking.id)
+        select(func.sum(Booking.total_amount))
         .where(Booking.status == BookingStatus.CONFIRMED)
     )
     total_revenue = revenue_result.scalar() or 0.0
@@ -178,4 +183,78 @@ async def get_booking_analytics(db: AsyncSession) -> dict:
         "total_bookings": total_bookings,
         "total_revenue": float(total_revenue),
         "total_tickets": total_tickets
+    }
+
+
+async def get_pricing_analytics(db: AsyncSession) -> dict:
+    """Get analytics on dynamic pricing impact"""
+    
+    # Total bookings
+    total_bookings_result = await db.execute(
+        select(func.count(Booking.id)).where(Booking.status == BookingStatus.CONFIRMED)
+    )
+    total_bookings = total_bookings_result.scalar() or 0
+    
+    if total_bookings == 0:
+        return {
+            "total_bookings_with_surge": 0,
+            "total_bookings_at_base_price": 0,
+            "average_price_multiplier": 1.0,
+            "total_surge_revenue": 0.0,
+            "base_price_revenue": 0.0,
+            "actual_revenue": 0.0,
+            "surge_percentage": 0.0
+        }
+    
+    # Bookings with surge pricing (multiplier > 1.0)
+    surge_bookings_result = await db.execute(
+        select(func.count(Booking.id))
+        .where(
+            and_(
+                Booking.status == BookingStatus.CONFIRMED,
+                Booking.price_multiplier > 1.0
+            )
+        )
+    )
+    surge_bookings = surge_bookings_result.scalar() or 0
+    
+    # Bookings at base price (multiplier = 1.0)
+    base_price_bookings = total_bookings - surge_bookings
+    
+    # Average price multiplier
+    avg_multiplier_result = await db.execute(
+        select(func.avg(Booking.price_multiplier))
+        .where(Booking.status == BookingStatus.CONFIRMED)
+    )
+    avg_multiplier = float(avg_multiplier_result.scalar() or 1.0)
+    
+    # Actual revenue (what customers paid)
+    actual_revenue_result = await db.execute(
+        select(func.sum(Booking.total_amount))
+        .where(Booking.status == BookingStatus.CONFIRMED)
+    )
+    actual_revenue = float(actual_revenue_result.scalar() or 0.0)
+    
+    # Base price revenue calculation using the total_amount / price_multiplier
+    # This gives us what would have been paid at base price
+    base_revenue_result = await db.execute(
+        select(func.sum(Booking.total_amount / Booking.price_multiplier))
+        .where(Booking.status == BookingStatus.CONFIRMED)
+    )
+    base_price_revenue = float(base_revenue_result.scalar() or 0.0)
+    
+    # Total surge revenue (extra revenue from dynamic pricing)
+    total_surge_revenue = actual_revenue - base_price_revenue
+    
+    # Surge percentage
+    surge_percentage = (surge_bookings / total_bookings * 100) if total_bookings > 0 else 0.0
+    
+    return {
+        "total_bookings_with_surge": surge_bookings,
+        "total_bookings_at_base_price": base_price_bookings,
+        "average_price_multiplier": round(avg_multiplier, 2),
+        "total_surge_revenue": round(total_surge_revenue, 2),
+        "base_price_revenue": round(base_price_revenue, 2),
+        "actual_revenue": round(actual_revenue, 2),
+        "surge_percentage": round(surge_percentage, 1)
     }

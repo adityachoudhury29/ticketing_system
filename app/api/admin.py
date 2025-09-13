@@ -6,10 +6,10 @@ from ..db.session import get_db
 from ..schemas.schemas import (
     EventCreate, EventUpdate, EventResponse, 
     AnalyticsSummary, PopularEvent, DailyTrend,
-    VenueHeatmapResponse
+    VenueHeatmapResponse, PricingAnalytics
 )
 from ..crud.event import get_event_by_id, update_event, delete_event, get_events, get_popular_events_stats, get_daily_booking_trends
-from ..crud.booking import get_booking_analytics
+from ..crud.booking import get_booking_analytics, get_pricing_analytics
 from ..crud.user import get_users
 from ..services.booking import EventService
 from ..services.cache import CacheService
@@ -256,4 +256,20 @@ async def refresh_venue_heatmap(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to refresh venue heatmap: {str(e)}"
+        )
+
+
+@router.get("/analytics/pricing", response_model=PricingAnalytics)
+async def get_pricing_analytics_summary(
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Get dynamic pricing analytics and impact summary (admin only)"""
+    try:
+        pricing_data = await get_pricing_analytics(db)
+        return PricingAnalytics.model_validate(pricing_data)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate pricing analytics: {str(e)}"
         )
